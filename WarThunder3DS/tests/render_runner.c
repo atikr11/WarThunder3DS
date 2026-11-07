@@ -69,8 +69,10 @@ int main(void){
     game.actors[0].p.z+=100;game.actors[0].elev=.6f;updateCamera(1.0f/60);
     assert(fabsf(eye.y-game.actors[0].p.y-oldY)<.001f);
     assert(fabsf(atan2f(look.y-eye.y,horizontal(sub(look,eye)))-oldPitch)<.001f);
+    game.aiming=1;for(int i=0;i<60;i++)updateCamera(1.0f/60);assert(viewTan<.3f);captureFrame("zoom");
+    game.aiming=0;for(int i=0;i<60;i++)updateCamera(1.0f/60);assert(viewTan>.57f);
     game.mode=MODE_PAUSE;captureFrame("pause");game.mode=MODE_RESULT;game.winner=0;captureFrame("result");
-    startMatch(1);rebuildScene();captureFrame("air");game.actors[0].hp=0;game.actors[0].respawn=5;captureFrame("destroyed");
+    startMatch(1);rebuildScene();captureFrame("air");game.aiming=1;for(int i=0;i<60;i++)updateCamera(1.0f/60);assert(viewTan<.3f);game.aiming=0;resetCamera();game.actors[0].hp=0;game.actors[0].respawn=5;captureFrame("destroyed");
         startMatch(0);rebuildScene();
     game.kills=999;game.deaths=999;
     for(int i=0;i<game.count;i++)game.actors[i].p=V((i%4-1)*14,1.5f,-320+(i/4)*20);

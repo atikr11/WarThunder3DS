@@ -73,7 +73,7 @@ void spawnActor(int i){
 }
 void startMatch(int air){
     game.air=air;game.selection=air;game.count=air?10:12;game.edge=air?1000:600;
-    game.elapsed=0;game.kills=0;game.deaths=0;game.winner=-1;game.hitMarker=0;game.damageFlash=0;
+    game.aiming=0;game.elapsed=0;game.kills=0;game.deaths=0;game.winner=-1;game.hitMarker=0;game.damageFlash=0;
     game.tickets[0]=game.tickets[1]=200;
     memset(game.actors,0,sizeof(game.actors));memset(game.shots,0,sizeof(game.shots));memset(game.fx,0,sizeof(game.fx));
     generateMap();
@@ -198,29 +198,29 @@ static void controlBot(int id,float dt){
     if(length(d)<(a->plane?500:410)&&error<(a->plane?.10f:.045f)&&(!a->plane||fabsf(pitch-a->pitch)<.10f)&&traceWorld(add(a->p,V(0,a->plane?0:2,0)),target,0)>=.999f)fireWeapon(id);
 }
 void playerControl(float dt,Controls c){
-    Actor *a=&game.actors[0];float x=clampf(c.stickX,-1,1),y=clampf(c.stickY,-1,1);
+    Actor *a=&game.actors[0];game.aiming=(c.held&KEY_L)!=0;float x=clampf(c.stickX,-1,1),y=clampf(c.stickY,-1,1);
     x=fabsf(x)<.14f?0:(x-copysignf(.14f,x))/.86f;
     y=fabsf(y)<.14f?0:(y-copysignf(.14f,y))/.86f;
     if(a->plane){
-        a->yaw+=x*.95f*dt;a->pitch=clampf(a->pitch+y*.8f*dt,-.9f,.9f);
-        a->bank+=(-x*.9f-a->bank)*fminf(1,dt*5);
+        a->yaw-=x*.95f*dt;a->pitch=clampf(a->pitch+y*.8f*dt,-.9f,.9f);
+        a->bank+=(x*.9f-a->bank)*fminf(1,dt*5);
         if(c.held&KEY_A)a->speed+=25*dt;
         if(c.held&KEY_B)a->speed-=35*dt;
         a->speed=clampf(a->speed,55,145);
     }else{
-        float yawDelta=x*1.25f*dt;
+        float yawDelta=-x*1.25f*dt;
         a->yaw+=yawDelta;
         /* Hull movement carries the turret around; D-pad is independent fine aim. */
         a->turret+=yawDelta;
         float desired=y*(c.held&KEY_A?38:27);
         a->speed+=(desired-a->speed)*fminf(1,dt*4);
         /* KEY_UP/LEFT include Circle Pad aliases. Always use KEY_D* here. */
-        if(c.held&KEY_DLEFT)a->turret-=1.15f*dt;
-        if(c.held&KEY_DRIGHT)a->turret+=1.15f*dt;
+        if(c.held&KEY_DLEFT)a->turret+=1.15f*dt;
+        if(c.held&KEY_DRIGHT)a->turret-=1.15f*dt;
         if(c.held&KEY_DUP)a->elev+=.58f*dt;
         if(c.held&KEY_DDOWN)a->elev-=.58f*dt;
         a->elev=clampf(a->elev,-.1f,.75f);
-        if(c.held&KEY_L){a->turret=turn(a->turret,a->yaw,2.5f*dt);a->elev=turn(a->elev,.015f,dt);}
+        /* L is a momentary aim zoom; never recenters the gun. */
     }
     if(c.held&KEY_R)fireWeapon(0);
 }

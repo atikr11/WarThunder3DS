@@ -1,4 +1,4 @@
-# WarThunder3DS — Valley Front (v2.1)
+# WarThunder3DS — Valley Front (v2.2)
 
 Original offline arcade combat for Old Nintendo 3DS / 3DS XL.
 Not affiliated with War Thunder or Gaijin; no assets from those games.
@@ -28,6 +28,8 @@ The Makefile supports this project's path containing spaces.
 `make clean` removes generated game build outputs; `make -j2` rebuilds them.
 Keep all files under `source/` together; main.c now uses separate simulation,
 graphics, and audio modules for easier development.
+
+v2.2 corrects left/right steering and turret direction, adds smooth hold-L aiming zoom to both modes, and replaces fractional text scaling with larger integer-aligned text. Zoom narrows field of view from 60 to 30 degrees; it does not automatically lock onto enemies. Release L to return to the normal view.
 
 See `AUDIT-v2.1.md` for the missing-menu fix, combat corrections, optimization work, and verification details.
 
@@ -88,7 +90,7 @@ or after 12 minutes, with the higher ticket total winning.
 | D-pad left/right | Rotate turret | Unused |
 | D-pad up/down | Raise/lower cannon | Unused |
 | R (hold) | Fire cannon | Fire machine guns |
-| L (hold) | Center turret and gun elevation | Unused |
+| L (hold) | Aim zoom | Aim zoom |
 | A (hold) | Drive boost | Increase throttle |
 | B (hold) | Unused | Airbrake/decrease throttle |
 | Y | Toggle close/wide chase camera | Same |

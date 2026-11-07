@@ -10,6 +10,13 @@ static void assertValid(void){
 int main(void){
     initGame();startMatch(0);
     assert(game.count==12&&game.edge==600);
+    playerControl(.1f,(Controls){0,1,0});assert(game.actors[0].yaw<0);
+    spawnActor(0);playerControl(.1f,(Controls){0,-1,0});assert(game.actors[0].yaw>0);
+    spawnActor(0);playerControl(.1f,(Controls){KEY_DRIGHT,0,0});assert(game.actors[0].turret<0);
+    float gun=game.actors[0].turret;playerControl(.1f,(Controls){KEY_L,0,0});assert(game.aiming&&game.actors[0].turret==gun);
+    playerControl(.1f,(Controls){0,0,0});assert(!game.aiming);
+    startMatch(1);playerControl(.1f,(Controls){KEY_L,1,0});assert(game.actors[0].yaw<0&&game.actors[0].bank>0&&game.aiming);
+    startMatch(0);
     float elev=game.actors[0].elev,yaw=game.actors[0].turret;
     /* Old KEY_UP combines bit 6 with Circle Pad bit 30. Only bit 30 is held here. */
     playerControl(.5f,(Controls){1u<<30,0,1});

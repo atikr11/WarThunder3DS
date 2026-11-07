@@ -45,7 +45,7 @@ typedef struct {u32 held;float stickX,stickY;} Controls;
 typedef struct {
     Actor actors[MAX_ACTORS]; Shot shots[MAX_SHOTS];Effect fx[MAX_FX];
     Building buildings[BUILDINGS];Tree trees[TREES];Objective objectives[OBJECTIVES];
-    int mode,selection,air,count,kills,deaths,winner,closeCamera,overflow;
+    int aiming; int mode,selection,air,count,kills,deaths,winner,closeCamera,overflow;
     float edge,tickets[2],elapsed,fps,hitMarker,damageFlash,messageTime;
     unsigned seed;char message[64];
 } Game;
@@ -78,4 +78,3 @@ void stopAudio(void);
 void updateAudio(void);
 void playSound(int kind,Vec p,float volume);
 #endif
-

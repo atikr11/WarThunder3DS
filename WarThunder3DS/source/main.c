@@ -29,8 +29,8 @@ int main(void){
             Controls controls={held,circle.dx/156.0f,circle.dy/156.0f};accumulator+=dt;
             while(accumulator>=1.0f/60){stepGame(1.0f/60,controls);accumulator-=1.0f/60;if(game.mode!=MODE_PLAY){accumulator=0;break;}}
         }else accumulator=0;
+        game.aiming=game.mode==MODE_PLAY&&game.actors[0].hp>0&&(held&KEY_L);
         updateAudio();renderGame(game.mode==MODE_PAUSE?0:dt);
     }
     stopAudio();graphicsShutdown();gfxExit();return 0;
 }
-

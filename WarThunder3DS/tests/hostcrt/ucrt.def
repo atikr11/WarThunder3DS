@@ -28,3 +28,5 @@ abs
 fopen
 fclose
 fwrite
+
+floorf

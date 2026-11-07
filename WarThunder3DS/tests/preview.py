@@ -5,7 +5,7 @@ from pathlib import Path
 import struct
 from PIL import Image, ImageDraw
 root = Path(__file__).resolve().parent / 'output'
-for name in ['menu', 'tank', 'pause', 'result', 'air', 'destroyed']:
+for name in ['menu', 'tank', 'pause', 'result', 'air', 'destroyed', 'zoom']:
     data = (root / (name + '.bin')).read_bytes()
     records = list(struct.iter_unpack('<16f', data))
     images = []
@@ -25,4 +25,3 @@ for name in ['menu', 'tank', 'pause', 'result', 'air', 'destroyed']:
     combined.paste(images[0], (10,6)); combined.paste(images[1], (50,258))
     combined.resize((840,1016),Image.Resampling.NEAREST).save(root/(name+'.png'))
 print('Wrote six desktop layout previews')
-

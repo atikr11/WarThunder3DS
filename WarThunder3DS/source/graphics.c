@@ -16,9 +16,9 @@ static DVLB_s *shader;
 static shaderProgram_s program;
 static int uniformLocation,programReady,cameraReady;
 static Vec eye,look,forward;
-static float cameraYaw,sceneTime;
+static float cameraYaw,sceneTime,zoomAmount,viewTan=.5773503f;
 static C3D_Mtx view,mvp;
-static const Vec navy={.035f,.055f,.085f},panel={.065f,.095f,.13f},muted={.46f,.57f,.62f},white={.9f,.94f,.91f},blue={.18f,.65f,.95f},red={.95f,.28f,.21f},gold={1,.75f,.28f},green={.42f,.85f,.49f};
+static const Vec navy={.035f,.055f,.085f},panel={.065f,.095f,.13f},muted={.72f,.79f,.81f},white={.9f,.94f,.91f},blue={.18f,.65f,.95f},red={.95f,.28f,.21f},gold={1,.75f,.28f},green={.42f,.85f,.49f};
 static void vertex(Vec p,Vec c){
     if(nv>=capacity){game.overflow=1;return;}
     vertices[nv++]=(Vertex){p.x,p.y,p.z,c.x,c.y,c.z};
@@ -69,6 +69,7 @@ static const unsigned char glyphs[36][5]={
  {0x3f,0x40,0x40,0x40,0x3f},{0x1f,0x20,0x40,0x20,0x1f},{0x3f,0x40,0x38,0x40,0x3f},{0x63,0x14,8,0x14,0x63},{7,8,0x70,8,7},{0x61,0x51,0x49,0x45,0x43}
 };
 static void text(float x,float y,float scale,Vec c,const char *s){
+    scale=scale>=1.5f?2:1;x=floorf(x+.5f);y=floorf(y+.5f);
     for(;*s;s++,x+=6*scale){
         unsigned char g[5]={0};int ch=*s;if(ch>='a'&&ch<='z')ch-=32;
         if(ch>='0'&&ch<='9')memcpy(g,glyphs[ch-'0'],5);
@@ -91,7 +92,7 @@ static void text(float x,float y,float scale,Vec c,const char *s){
         }
     }
 }
-static void centered(float x,float y,float scale,Vec c,const char *s){text(x-strlen(s)*3*scale,y,scale,c,s);}
+static void centered(float x,float y,float scale,Vec c,const char *s){scale=scale>=1.5f?2:1;text(x-strlen(s)*3*scale,y,scale,c,s);}
 static void bar(float x,float y,float w,float h,float fraction,Vec color){rect(x,y,w,h,V(.13f,.17f,.19f));rect(x,y,w*clampf(fraction,0,1),h,color);}
 static int cellFor(float x,float z){
     int cx=(int)((x+game.edge)/(2*game.edge)*GRID),cz=(int)((z+game.edge)/(2*game.edge)*GRID);
@@ -151,7 +152,7 @@ static int visible(Vec center,float radius,float distance){
     Vec delta=sub(center,eye);if(dot(delta,delta)>(distance+radius)*(distance+radius))return 0;
     C3D_FVec p=Mtx_MultiplyFVecH(&view,FVec3_New(center.x,center.y,center.z));float depth=-p.z;
     if(depth< -radius)return 0;
-    float t=fmaxf(0,depth)*.5773503f;
+    float t=fmaxf(0,depth)*viewTan;
     return fabsf(p.x)<t*1.66667f+radius*1.6f&&fabsf(p.y)<t+radius*1.6f;
 }
 static void vehicle(const Actor *a,int detailed){
@@ -182,7 +183,7 @@ static void vehicle(const Actor *a,int detailed){
         }
     }
 }
-void resetCamera(void){cameraReady=0;}
+void resetCamera(void){cameraReady=0;zoomAmount=0;viewTan=.5773503f;}
 static void updateCamera(float dt){
     Actor *a=&game.actors[0];float desired=a->plane?a->yaw:a->turret;
     if(!cameraReady)cameraYaw=desired;
@@ -194,18 +195,25 @@ static void updateCamera(float dt){
     Vec wanted=add(sub(focus,mul(back,distance)),V(0,a->plane?7:9,0));
     float hit=traceWorld(focus,wanted,1.2f);
     if(hit<1)wanted=add(focus,mul(sub(wanted,focus),fmaxf(.1f,hit-.06f)));
+    zoomAmount+=( (game.aiming?1.0f:0)-zoomAmount)*(1-expf(-dt*14));
+    Vec aimDirection=direction(a->plane?a->yaw:a->turret,a->plane?a->pitch:a->elev);
+    Vec zoomEye=a->plane?add(a->p,mul(aimDirection,7)):add(sub(focus,mul(aimDirection,8)),V(0,3,0));
+    float zoomHit=traceWorld(focus,zoomEye,1);
+    if(zoomHit<1)zoomEye=add(focus,mul(sub(zoomEye,focus),fmaxf(.1f,zoomHit-.06f)));
+    wanted=add(wanted,mul(sub(zoomEye,wanted),zoomAmount));
     wanted.y=fmaxf(wanted.y,3);
     if(!cameraReady||!a->plane){eye=wanted;cameraReady=1;}
     else eye=add(eye,mul(sub(wanted,eye),1-expf(-dt*10)));
     look=add(focus,mul(direction(cameraYaw,a->plane?a->pitch*.7f:0),40));
+    look=add(look,mul(sub(add(focus,mul(aimDirection,300)),look),zoomAmount));
     if(game.mode==MODE_MENU){float a0=sceneTime*.08f;eye=V(sinf(a0)*175,72,cosf(a0)*175);look=V(0,7,0);}
     forward=sub(look,eye);forward=mul(forward,1/fmaxf(length(forward),.001f));
     Mtx_LookAt(&view,FVec3_New(eye.x,eye.y,eye.z),FVec3_New(look.x,look.y,look.z),FVec3_New(0,1,0),false);
-    C3D_Mtx projection;Mtx_PerspTilt(&projection,PI/3,400.0f/240,.5f,game.edge*3.5f,false);Mtx_Multiply(&mvp,&projection,&view);
+    C3D_Mtx projection;viewTan=tanf((PI/3-zoomAmount*PI/6)*.5f);Mtx_PerspTilt(&projection,PI/3-zoomAmount*PI/6,400.0f/240,.5f,game.edge*3.5f,false);Mtx_Multiply(&mvp,&projection,&view);
 }
 static int project(Vec world,float *x,float *y){
     C3D_FVec p=Mtx_MultiplyFVecH(&view,FVec3_New(world.x,world.y,world.z));if(p.z>=-.5f)return 0;
-    *x=200+p.x/(-p.z*.5773503f*1.6666667f)*200;*y=120-p.y/(-p.z*.5773503f)*120;
+    *x=200+p.x/(-p.z*viewTan*1.6666667f)*200;*y=120-p.y/(-p.z*viewTan)*120;
     return *x>=5&&*x<395&&*y>=20&&*y<220;
 }
 static void dynamicWorld(void){
@@ -264,43 +272,39 @@ static void targetMarkers(void){
 static void topUI(void){
     char s[80];Actor *a=&game.actors[0];
     if(game.mode==MODE_MENU){
-        rect(0,0,400,34,navy);text(14,10,2,white,"WAR THUNDER 3DS");text(14,27,0.7f,muted,"VALLEY FRONT  /  V2.1 BUGFIX BUILD");
-        rect(34,68,332,104,navy);rect(34,68,3,104,game.selection?gold:blue);
+        rect(0,0,400,44,navy);centered(200,8,2,white,"WAR THUNDER 3DS");centered(200,29,1,muted,"VALLEY FRONT / V2.2");
+        rect(20,68,360,111,navy);outline(20,68,360,111,blue);
         centered(200,82,2,white,game.selection?"AIR SUPERIORITY":"ARMORED FRONT");
-        centered(200,107,1,muted,game.selection?"10 AIRCRAFT / 2 KM BATTLEFIELD":"12 TANKS / 3 CAPTURE OBJECTIVES");
-        centered(200,126,1,game.selection?gold:blue,game.selection?"DOGFIGHT ABOVE THE MOUNTAIN VALLEY":"CAPTURE THE VILLAGES. HOLD THE LINE.");
-        centered(200,149,1,white,"<  LEFT / RIGHT TO SELECT  >");
-        rect(0,215,400,25,navy);centered(200,224,1,gold,"A  DEPLOY     START  EXIT");return;
+        centered(200,110,2,gold,game.selection?"5 VS 5 AIRCRAFT":"6 VS 6 TANKS");
+        centered(200,141,2,white,"< SELECT BATTLE >");
+        rect(0,211,400,29,navy);centered(200,218,2,gold,"A DEPLOY / START EXIT");return;
     }
-    targetMarkers();
-    rect(8,5,384,24,navy);
-    text(15,11,1,blue,"BLUE");snprintf(s,sizeof(s),"%03d",(int)fmaxf(0,game.tickets[0]));text(47,10,1.3f,white,s);
-    bar(80,12,62,5,game.tickets[0]/200,blue);
-    text(324,11,1,red,"RED");snprintf(s,sizeof(s),"%03d",(int)fmaxf(0,game.tickets[1]));text(350,10,1.3f,white,s);bar(258,12,58,5,game.tickets[1]/200,red);
-    snprintf(s,sizeof(s),"%02d:%02d",(int)(720-game.elapsed)/60,(int)(720-game.elapsed)%60);centered(200,10,1,white,s);
+    targetMarkers();rect(5,4,390,31,navy);
+    snprintf(s,sizeof(s),"BLUE %03d",(int)fmaxf(0,game.tickets[0]));text(12,9,2,blue,s);
+    snprintf(s,sizeof(s),"RED %03d",(int)fmaxf(0,game.tickets[1]));text(300,9,2,red,s);
+    snprintf(s,sizeof(s),"%02d:%02d",(int)(720-game.elapsed)/60,(int)(720-game.elapsed)%60);centered(200,9,2,white,s);
+    bar(12,27,96,3,game.tickets[0]/200,blue);bar(300,27,83,3,game.tickets[1]/200,red);
     if(!game.air)for(int i=0;i<OBJECTIVES;i++){
         Objective *o=&game.objectives[i];Vec color=o->owner==0?blue:o->owner==1?red:gold;
-        rect(170+i*23,23,18,13,panel);s[0]='A'+i;s[1]=0;text(176+i*23,26,1,color,s);
+        rect(163+i*27,36,22,22,navy);s[0]='A'+i;s[1]=0;text(169+i*27,40,2,color,s);
     }
-    float x=200,y=120;
-    Vec aim=add(add(a->p,V(0,a->plane?-.2f:1.5f,0)),mul(direction(a->plane?a->yaw:a->turret,a->plane?a->pitch:a->elev),game.air?450:300));
+    float x=200,y=120;Vec aim=add(add(a->p,V(0,a->plane?-.2f:1.5f,0)),mul(direction(a->plane?a->yaw:a->turret,a->plane?a->pitch:a->elev),game.air?450:300));
     if(!a->plane){float flight=300.0f/245;aim.y-=.5f*9.8f*flight*flight;}
     float px,py;if(project(aim,&px,&py)){x=px;y=py;}
-    Vec reticle=game.hitMarker>0?red:a->reload>.15f?muted:gold;
-    rect(x-12,y,7,1,reticle);rect(x+6,y,7,1,reticle);rect(x,y-12,1,7,reticle);rect(x,y+6,1,7,reticle);rect(x-1,y-1,2,2,reticle);
-    if(game.hitMarker>0){outline(x-7,y-7,15,15,red);}
-    rect(8,206,120,27,navy);text(14,211,1,muted,"HULL");bar(45,210,75,6,a->hp/maxHP(a),a->hp<maxHP(a)*.3f?red:green);
-    text(14,222,1,muted,"GUN");bar(45,222,75,3,1-a->reload/reloadTime(a),gold);
-    rect(282,206,110,27,navy);snprintf(s,sizeof(s),"SPD %03d KM/H",(int)(fabsf(a->speed)*3.6f));text(288,211,1,white,s);
-    snprintf(s,sizeof(s),game.air?"ALT %03dM":"HEADING %03d",game.air?(int)a->p.y:((int)(wrap(a->yaw)*180/PI)+360)%360);text(288,223,1,muted,s);
-    if(game.messageTime>0){rect(30,184,340,14,navy);centered(200,188,.85f,gold,game.message);}
+    Vec color=game.hitMarker>0?red:a->reload>.15f?white:gold;
+    rect(x-14,y,8,2,color);rect(x+7,y,8,2,color);rect(x,y-14,2,8,color);rect(x,y+7,2,8,color);rect(x,y,2,2,color);
+    if(game.aiming){rect(145,167,110,20,navy);centered(200,171,2,gold,"AIM ZOOM");}
+    if(game.hitMarker>0)outline(x-8,y-8,18,18,red);
+    rect(5,203,135,33,navy);snprintf(s,sizeof(s),"HULL %03d%%",(int)(a->hp/maxHP(a)*100));text(10,207,2,white,s);bar(10,226,122,5,a->hp/maxHP(a),green);
+    rect(272,203,123,33,navy);snprintf(s,sizeof(s),"%03d KM/H",(int)(fabsf(a->speed)*3.6f));text(282,207,2,white,s);bar(282,226,104,5,1-a->reload/reloadTime(a),gold);
+    if(game.messageTime>0){rect(4,185,392,15,navy);centered(200,189,1,gold,game.message);}
     if(game.damageFlash>0){rect(0,0,400,3,red);rect(0,237,400,3,red);rect(0,0,3,240,red);rect(397,0,3,240,red);}
-    if(a->hp<=0){rect(60,80,280,65,navy);centered(200,91,2,red,"VEHICLE DESTROYED");snprintf(s,sizeof(s),"REDEPLOYING IN %.0F",ceilf(a->respawn));centered(200,120,1,white,s);}
+    if(a->hp<=0){rect(42,80,316,69,navy);centered(200,91,2,red,"VEHICLE LOST");snprintf(s,sizeof(s),"RESPAWN IN %.0F",ceilf(a->respawn));centered(200,121,2,white,s);}
     if(game.mode==MODE_PAUSE||game.mode==MODE_RESULT){
-        rect(48,70,304,94,navy);outline(48,70,304,94,muted);
-        centered(200,86,2,game.mode==MODE_PAUSE?white:game.winner?red:blue,game.mode==MODE_PAUSE?"BATTLE PAUSED":game.winner?"DEFEAT":"VICTORY");
-        snprintf(s,sizeof(s),"%d KILLS  /  %d LOSSES",game.kills,game.deaths);centered(200,116,1,white,s);
-        centered(200,143,1,gold,game.mode==MODE_PAUSE?"START RESUME  /  SELECT MENU":"A REMATCH  /  SELECT MENU");
+        rect(30,69,340,105,navy);outline(30,69,340,105,muted);
+        centered(200,82,2,white,game.mode==MODE_PAUSE?"PAUSED":game.winner?"DEFEAT":"VICTORY");
+        snprintf(s,sizeof(s),"%d KILLS / %d LOSSES",game.kills,game.deaths);centered(200,110,2,white,s);
+        centered(200,138,2,gold,game.mode==MODE_PAUSE?"START RESUME":"A REMATCH");centered(200,158,1,white,"SELECT RETURN TO MENU");
     }
 }
 static void tacticalMap(float x,float y,float size){
@@ -329,35 +333,27 @@ static void tacticalMap(float x,float y,float size){
 }
 static void bottomUI(void){
     char s[80];Actor *a=&game.actors[0];rect(0,0,320,240,navy);
-    rect(0,0,320,25,panel);text(10,8,1.3f,white,game.mode==MODE_MENU?"MISSION BRIEFING":"TACTICAL COMMAND");
-    snprintf(s,sizeof(s),"%02.0F FPS",game.fps);text(265,9,.8f,muted,s);
+    rect(0,0,320,29,panel);text(8,7,2,white,game.mode==MODE_MENU?"MISSION BRIEFING":"TACTICAL MAP");
     if(game.mode==MODE_MENU){
-        rect(10,35,300,48,panel);text(18,43,1.4f,game.selection?gold:blue,game.selection?"AIR SUPERIORITY":"ARMORED FRONT");
-        text(18,63,1,muted,game.selection?"AIRCRAFT ONLY / 5 VS 5":"TANKS ONLY / 6 VS 6");
-        text(14,96,1,white,game.selection?"OBJECTIVE: DESTROY ENEMY AIRCRAFT":"OBJECTIVE: CONTROL THREE CAPTURE ZONES");
-        text(14,111,1,muted,"200 TICKETS / 12 MINUTES / AUTO RESPAWN");
-        text(14,135,1,white,game.selection?"CIRCLE PAD  STEER / CLIMB / DIVE":"CIRCLE PAD  DRIVE / HULL STEERING");
-        text(14,150,1,white,game.selection?"A / B       THROTTLE / AIRBRAKE":"D-PAD       TURRET / CANNON ELEVATION");
-        text(14,165,1,white,game.selection?"R           MACHINE GUNS":"R FIRE    L CENTER TURRET    A BOOST");
-        text(14,180,1,muted,"Y CAMERA  /  START PAUSE  /  SELECT MENU");
-        rect(10,207,300,24,panel);centered(160,215,1,gold,"TOUCH DEPLOY OR PRESS A");return;
+        text(10,40,2,game.selection?gold:blue,game.selection?"AIRCRAFT ONLY":"TANKS ONLY");
+        text(10,66,2,white,game.selection?"DESTROY ENEMY AIRCRAFT":"CAPTURE ZONES A / B / C");
+        text(10,94,2,muted,"CIRCLE PAD: MOVE");
+        text(10,117,2,white,"R FIRE / HOLD L ZOOM");
+        text(10,140,2,white,game.selection?"A SPEED UP / B SLOW":"D-PAD: AIM / A BOOST");
+        text(10,163,2,muted,"Y CAMERA / START PAUSE");
+        rect(8,201,304,31,panel);centered(160,210,2,gold,"TOUCH OR A TO DEPLOY");return;
     }
-    text(10,33,1,muted,game.air?"AIRSPACE OVERVIEW":"VALLEY SECTORS");tacticalMap(10,47,174);
-    rect(194,35,116,63,panel);text(202,43,1,muted,"VEHICLE STATUS");
-    snprintf(s,sizeof(s),"HULL %03d%%",(int)(a->hp/maxHP(a)*100));text(202,59,1,a->hp>maxHP(a)*.3f?green:red,s);bar(202,73,100,6,a->hp/maxHP(a),green);
-    snprintf(s,sizeof(s),"%s",a->reload>.1f?"RELOADING":"WEAPON READY");text(202,86,.9f,gold,s);
-    rect(194,105,116,47,panel);snprintf(s,sizeof(s),"KILLS %02d",game.kills);text(202,113,1,white,s);snprintf(s,sizeof(s),"LOSSES %02d",game.deaths);text(202,129,1,muted,s);
-    if(!game.air){
-        for(int i=0;i<OBJECTIVES;i++){
-            Objective *o=&game.objectives[i];Vec c=o->capture>0?blue:o->capture<0?red:gold;
-            snprintf(s,sizeof(s),"%c %s",'A'+i,o->contested?"CONTESTED":o->owner==0?"ALLIED":o->owner==1?"ENEMY":"NEUTRAL");text(197,162+i*18,.85f,c,s);
-            bar(197,172+i*18,108,3,fabsf(o->capture),c);
-        }
-    }else{
-        text(201,164,1,muted,"FLIGHT DATA");snprintf(s,sizeof(s),"ALT %03dM",(int)a->p.y);text(201,181,1,white,s);
-        snprintf(s,sizeof(s),"PITCH %+03d",(int)(a->pitch*180/PI));text(201,197,1,muted,s);
+    tacticalMap(8,37,144);
+    rect(162,37,150,62,panel);text(170,44,2,muted,"HULL");snprintf(s,sizeof(s),"%03d%%",(int)(a->hp/maxHP(a)*100));text(238,44,2,white,s);bar(170,68,134,7,a->hp/maxHP(a),green);
+    text(170,83,2,gold,a->reload>.1f?"LOADING":"GUN READY");
+    snprintf(s,sizeof(s),"KILLS %02d",game.kills);text(168,110,2,white,s);snprintf(s,sizeof(s),"LOST  %02d",game.deaths);text(168,133,2,muted,s);
+    if(game.air){snprintf(s,sizeof(s),"ALT %03dM",(int)a->p.y);text(168,160,2,white,s);}
+    else for(int i=0;i<OBJECTIVES;i++){
+        Objective *o=&game.objectives[i];Vec c=o->contested?gold:o->owner==0?blue:o->owner==1?red:muted;
+        float x=9+i*102;rect(x,189,96,25,panel);snprintf(s,sizeof(s),"%c %s",'A'+i,o->contested?"FIGHT":o->owner==0?"BLUE":o->owner==1?"RED":"OPEN");text(x+4,193,2,c,s);
     }
-    rect(0,228,320,12,panel);centered(160,231,.8f,muted,"R FIRE  Y CAMERA  START PAUSE  SELECT MENU");
+    rect(0,220,320,20,panel);centered(160,225,1,white,"L ZOOM / R FIRE / SELECT MENU");
+    snprintf(s,sizeof(s),"%.0F FPS",game.fps);text(268,10,1,muted,s);
 }
 static void bindVertices(Vertex *data){C3D_BufInfo *b=C3D_GetBufInfo();BufInfo_Init(b);BufInfo_Add(b,data,sizeof(Vertex),2,0x10);}
 int graphicsInit(void){
