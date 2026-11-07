@@ -5,7 +5,7 @@
 static FILE *dump;
 static C3D_Mtx active;
 static C3D_RenderTarget *activeTarget;
-static int depthEnabled;
+static int depthEnabled,colorMask;
 static Vertex *bound;
 void playSound(int k,Vec p,float v){(void)k;(void)p;(void)v;}
 static C3D_FVec mv(const C3D_Mtx *m,C3D_FVec v){
@@ -38,12 +38,12 @@ C3D_AttrInfo *C3D_GetAttrInfo(void){static C3D_AttrInfo a;return &a;}void AttrIn
 C3D_TexEnv *C3D_GetTexEnv(int x){static C3D_TexEnv e;(void)x;return &e;}void C3D_TexEnvInit(C3D_TexEnv *e){(void)e;}void C3D_TexEnvSrc(C3D_TexEnv *a,int b,int c,int d,int e){(void)a;(void)b;(void)c;(void)d;(void)e;}void C3D_TexEnvFunc(C3D_TexEnv *a,int b,int c){(void)a;(void)b;(void)c;}
 void C3D_CullFace(int a){(void)a;}void C3D_FrameSync(void){}int C3D_FrameBegin(int a){(void)a;return 1;}void C3D_FrameEnd(int a){(void)a;}
 void C3D_RenderTargetClear(C3D_RenderTarget *a,int b,unsigned c,int d){(void)a;(void)b;(void)c;(void)d;}
-void C3D_FrameDrawOn(C3D_RenderTarget *t){activeTarget=t;}void C3D_DepthTest(int enable,int op,int mask){(void)op;(void)mask;depthEnabled=enable;}
+void C3D_FrameDrawOn(C3D_RenderTarget *t){activeTarget=t;}void C3D_DepthTest(int enable,int op,int mask){(void)op;depthEnabled=enable;colorMask=mask;}
 void C3D_FVUnifMtx4x4(int a,int b,const C3D_Mtx *m){(void)a;(void)b;active=*m;}
 C3D_BufInfo *C3D_GetBufInfo(void){static C3D_BufInfo b;return &b;}void BufInfo_Init(C3D_BufInfo *b){(void)b;}
 void BufInfo_Add(C3D_BufInfo *a,void *data,int stride,int count,int mask){(void)a;(void)stride;(void)count;(void)mask;bound=data;}
 void C3D_DrawArrays(int mode0,int first,int count){
-    (void)mode0;if(!dump)return;
+    (void)mode0;assert((colorMask&GPU_WRITE_COLOR)==GPU_WRITE_COLOR);if(!dump)return;
     for(int i=first;i<first+count;i+=3){
         float record[16]={0};record[0]=(float)activeTarget->id;record[1]=(float)depthEnabled;int good=1;
         for(int j=0;j<3;j++){
@@ -79,4 +79,3 @@ int main(void){
     resetCamera();captureFrame("stress");
     graphicsShutdown();puts("PASS: camera pitch regression and renderer vertex budgets, including peak effects");return 0;
 }
-

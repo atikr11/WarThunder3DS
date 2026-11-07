@@ -23,7 +23,8 @@ typedef struct{void *vertexShader;} shaderProgram_s;
 #define GPU_CULL_NONE 0
 #define GPU_GREATER 1
 #define GPU_ALWAYS 0
-#define GPU_WRITE_ALL 1
+#define GPU_WRITE_ALL 31
+#define GPU_WRITE_COLOR 15
 #define GPU_TRIANGLES 0
 #define GFX_TOP 0
 #define GFX_BOTTOM 1

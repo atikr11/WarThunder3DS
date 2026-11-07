@@ -34,7 +34,13 @@ static Vec rotate(Vec p,float yaw,float pitch,float bank){
     c=cosf(yaw);s=sinf(yaw);return V(p.x*c+p.z*s,p.y,-p.x*s+p.z*c);
 }
 static void box(Vec center,Vec size,float yaw,float pitch,float bank,Vec color){
-    Vec p[8];for(int i=0;i<8;i++)p[i]=add(center,rotate(V((i&1?1:-1)*size.x*.5f,(i&2?1:-1)*size.y*.5f,(i&4?1:-1)*size.z*.5f),yaw,pitch,bank));
+    float cy=cosf(yaw),sy=sinf(yaw),cp=cosf(pitch),sp=sinf(pitch),cb=cosf(bank),sb=sinf(bank);
+    Vec p[8];
+    for(int i=0;i<8;i++){
+        float x=(i&1?1:-1)*size.x*.5f,y=(i&2?1:-1)*size.y*.5f,z=(i&4?1:-1)*size.z*.5f;
+        float bx=x*cb-y*sb,by=x*sb+y*cb,py=by*cp+z*sp,pz=-by*sp+z*cp;
+        p[i]=add(center,V(bx*cy+pz*sy,py,-bx*sy+pz*cy));
+    }
     static const int face[6][4]={{0,1,3,2},{4,6,7,5},{0,4,5,1},{2,3,7,6},{0,2,6,4},{1,5,7,3}};
     static const float shade[6]={.72f,.9f,.5f,1,.62f,.82f};
     for(int f=0;f<6;f++){const int *q=face[f];Vec c=mul(color,shade[f]);tri(p[q[0]],p[q[1]],p[q[2]],c);tri(p[q[0]],p[q[2]],p[q[3]],c);}
@@ -258,7 +264,7 @@ static void targetMarkers(void){
 static void topUI(void){
     char s[80];Actor *a=&game.actors[0];
     if(game.mode==MODE_MENU){
-        rect(0,0,400,34,navy);text(14,10,2,white,"WAR THUNDER 3DS");text(14,27,0.7f,muted,"VALLEY FRONT  /  OFFLINE COMBAT");
+        rect(0,0,400,34,navy);text(14,10,2,white,"WAR THUNDER 3DS");text(14,27,0.7f,muted,"VALLEY FRONT  /  V2.1 BUGFIX BUILD");
         rect(34,68,332,104,navy);rect(34,68,3,104,game.selection?gold:blue);
         centered(200,82,2,white,game.selection?"AIR SUPERIORITY":"ARMORED FRONT");
         centered(200,107,1,muted,game.selection?"10 AIRCRAFT / 2 KM BATTLEFIELD":"12 TANKS / 3 CAPTURE OBJECTIVES");
@@ -388,9 +394,7 @@ void renderGame(float dt){
     float distance=game.air?1500:520;
     for(int i=0;i<CHUNKS;i++)if(visible(chunks[i].center,chunks[i].radius,distance))C3D_DrawArrays(GPU_TRIANGLES,chunks[i].first,chunks[i].count);
     bindVertices(vertices);C3D_DrawArrays(GPU_TRIANGLES,0,worldCount);
-    C3D_Mtx ortho;Mtx_OrthoTilt(&ortho,0,400,240,0,-1,1,false);C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER,uniformLocation,&ortho);C3D_DepthTest(false,GPU_ALWAYS,0);C3D_DrawArrays(GPU_TRIANGLES,worldCount,topCount-worldCount);
+    C3D_Mtx ortho;Mtx_OrthoTilt(&ortho,0,400,240,0,-1,1,false);C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER,uniformLocation,&ortho);C3D_DepthTest(false,GPU_ALWAYS,GPU_WRITE_COLOR);C3D_DrawArrays(GPU_TRIANGLES,worldCount,topCount-worldCount);
     C3D_RenderTargetClear(bottom,C3D_CLEAR_ALL,0x0B1420FF,0);C3D_FrameDrawOn(bottom);Mtx_OrthoTilt(&ortho,0,320,240,0,-1,1,false);C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER,uniformLocation,&ortho);C3D_DrawArrays(GPU_TRIANGLES,topCount,total-topCount);
     C3D_FrameEnd(0);
 }
-
-

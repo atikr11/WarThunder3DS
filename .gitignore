@@ -1,0 +1,4 @@
+.vs/
+WarThunder3DS/build/
+WarThunder3DS/tests/output/
+WarThunder3DS/*.elf

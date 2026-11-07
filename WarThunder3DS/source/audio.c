@@ -1,6 +1,7 @@
 #include "game.h"
 #define RATE 22050
-static int ready;
+static int ready,lastMode=-1;
+static float lastEngineGain=-1,lastEngineRate=-1;
 static s16 *samples[4],*engine;
 static int counts[4];
 static ndspWaveBuf waves[6],engineWave;
@@ -37,7 +38,11 @@ void stopAudio(void){
 void updateAudio(void){
     if(!ready)return;
     Actor *a=&game.actors[0];float gain=game.mode==MODE_PLAY&&a->hp>0?.28f:0;
-    float mix[12]={gain,gain};ndspChnSetMix(6,mix);ndspChnSetRate(6,RATE*(a->plane?.8f+a->speed/150:.65f+fabsf(a->speed)/38));
+    float rate=RATE*(a->plane?.8f+a->speed/150:.65f+fabsf(a->speed)/38);
+    if(gain!=lastEngineGain){float mix[12]={gain,gain};ndspChnSetMix(6,mix);lastEngineGain=gain;}
+    if(fabsf(rate-lastEngineRate)>100){ndspChnSetRate(6,rate);lastEngineRate=rate;}
+    if(game.mode!=MODE_PLAY&&game.mode!=lastMode)for(int i=0;i<6;i++)ndspChnWaveBufClear(i);
+    lastMode=game.mode;
 }
 void playSound(int kind,Vec p,float volume){
     if(!ready||kind<0||kind>3||!samples[kind])return;

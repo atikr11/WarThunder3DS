@@ -12,13 +12,22 @@ static float axisNear(float start,float delta,float lo,float hi,float *exit){
 static float boxTrace(Vec p,Vec end,const Building *b,float r){
     Vec d=sub(end,p);float leave=1,enter=0;
     enter=fmaxf(enter,axisNear(p.x,d.x,b->x-b->w*.5f-r,b->x+b->w*.5f+r,&leave));
-    enter=fmaxf(enter,axisNear(p.y,d.y,-r,b->h+r,&leave));
+    enter=fmaxf(enter,axisNear(p.y,d.y,-r,b->h*1.35f+r,&leave));
     enter=fmaxf(enter,axisNear(p.z,d.z,b->z-b->d*.5f-r,b->z+b->d*.5f+r,&leave));
     return enter<=leave&&enter<=1&&leave>=0?enter:1;
 }
 float traceWorld(Vec from,Vec to,float radius){
     float result=1;
-    for(int i=0;i<BUILDINGS;i++)result=fminf(result,boxTrace(from,to,&game.buildings[i],radius));
+    /* Cheap broad phase: reject buildings outside the segment bounds before divisions. */
+    float loX=fminf(from.x,to.x)-radius,hiX=fmaxf(from.x,to.x)+radius;
+    float loZ=fminf(from.z,to.z)-radius,hiZ=fmaxf(from.z,to.z)+radius;
+    float loY=fminf(from.y,to.y)-radius;
+    for(int i=0;i<BUILDINGS;i++){
+        Building *b=&game.buildings[i];
+        if(loY>b->h*1.35f||hiX<b->x-b->w*.5f||loX>b->x+b->w*.5f||hiZ<b->z-b->d*.5f||loZ>b->z+b->d*.5f)continue;
+        result=fminf(result,boxTrace(from,to,b,radius));
+        if(result<=0)break;
+    }
     if(to.y<radius&&to.y<from.y)result=fminf(result,(from.y-radius)/(from.y-to.y));
     return clampf(result,0,1);
 }
@@ -26,7 +35,7 @@ static int blocked(Vec p,float r){
     if(fabsf(p.x)>game.edge-r||fabsf(p.z)>game.edge-r)return 1;
     for(int i=0;i<BUILDINGS;i++){
         Building *b=&game.buildings[i];
-        if(p.y<b->h+r&&fabsf(p.x-b->x)<b->w*.5f+r&&fabsf(p.z-b->z)<b->d*.5f+r)return 1;
+        if(p.y<b->h*1.35f+r&&fabsf(p.x-b->x)<b->w*.5f+r&&fabsf(p.z-b->z)<b->d*.5f+r)return 1;
     }
     return 0;
 }
@@ -81,14 +90,17 @@ void damageActor(int victim,float amount,int owner){
     if(owner==0&&victim!=0){game.hitMarker=.22f;playSound(3,a->p,.7f);}
     if(a->hp>0)return;
     playSound(2,a->p,1);a->respawn=6;game.tickets[a->team]-=8;effect(a->p,8,0);effect(add(a->p,V(0,3,0)),7,1);
-    if(owner==0&&victim!=0){game.kills++;announce("TARGET DESTROYED  +8 TICKETS");}
+    if(owner==0&&victim!=0){game.kills++;announce("TARGET DESTROYED - ENEMY LOSES 8");}
     if(victim==0){game.deaths++;announce("VEHICLE LOST - REDEPLOYING IN 6 SECONDS");}
 }
 void fireWeapon(int id){
     Actor *a=&game.actors[id];if(a->hp<=0||a->reload>0)return;
     Vec d=direction(a->plane?a->yaw:a->turret,a->plane?a->pitch:a->elev);
     for(int i=0;i<MAX_SHOTS;i++)if(game.shots[i].life<=0){
-        Vec muzzle=add(add(a->p,V(0,a->plane?-.2f:1.5f,0)),mul(d,5.5f));
+        Vec origin=add(a->p,V(0,a->plane?-.2f:1.5f,0));
+        Vec muzzle=add(origin,mul(d,5.5f));
+        /* Start at the breech if a wall blocks the muzzle; next sweep registers the hit. */
+        if(traceWorld(origin,muzzle,0)<1)muzzle=origin;
         float speed=a->plane?360:245;
         game.shots[i]=(Shot){muzzle,mul(d,speed),a->plane?1.8f:3.0f,a->plane?18:66,a->plane?0:9.8f,id,a->team};
         playSound(a->plane?1:0,a->p,id==0?1:.7f);a->reload=reloadTime(a);effect(muzzle,a->plane?.5f:1.1f,0);return;
@@ -130,7 +142,7 @@ static Vec leadTarget(const Actor *a,const Actor *target,float speed){
     return add(target->p,mul(direction(target->yaw,target->plane?target->pitch:0),target->speed*time*.75f));
 }
 static void thinkBot(int id){
-    Actor *a=&game.actors[id];a->target=nearestEnemy(id);if(a->target<0)return;
+    Actor *a=&game.actors[id];a->target=nearestEnemy(id);if(a->target<0||game.actors[a->target].hp<=0)return;
     Actor *enemy=&game.actors[a->target];Vec target=leadTarget(a,enemy,a->plane?360:245);
     Vec delta=sub(target,a->p);float distance=length(delta);
     if(a->plane){
@@ -165,9 +177,9 @@ static void thinkBot(int id){
             }
             heading=bestHeading;a->evade=.8f;
         }
-        if(a->stuck>1.5f){heading=a->yaw+(id%2?1:-1)*1.7f;a->evade=1.5f;a->stuck=0;}
+        if(a->stuck>1.5f){heading=a->yaw+(id%2?1:-1)*1.7f;a->evade=1.5f;a->stuck=-1.2f;}
         a->desiredYaw=heading;a->desiredSpeed=horizontal(g)>14?26:0;
-        a->desiredPitch=clampf(atan2f(delta.y+9.8f*powf(horizontal(delta)/245,2)*.5f,horizontal(delta)),-.09f,.65f);
+        a->desiredPitch=clampf(atan2f(delta.y+9.8f*((delta.x*delta.x+delta.z*delta.z)/(245*245))*.5f,horizontal(delta)),-.09f,.65f);
     }
 }
 static void controlBot(int id,float dt){
@@ -175,8 +187,9 @@ static void controlBot(int id,float dt){
     if(a->think<=0){thinkBot(id);a->think=.16f;}
     a->yaw=turn(a->yaw,a->desiredYaw,(a->plane?1.05f:1.3f)*dt);
     a->speed+=(a->desiredSpeed-a->speed)*fminf(1,dt*2);
+    if(!a->plane&&a->stuck<0){a->stuck=fminf(0,a->stuck+dt);a->speed=-12;}
     if(a->plane){a->pitch=turn(a->pitch,a->desiredPitch,.65f*dt);a->bank=clampf(-wrap(a->desiredYaw-a->yaw),-.9f,.9f);}
-    if(a->target<0)return;
+    if(a->target<0||game.actors[a->target].hp<=0)return;
     Actor *enemy=&game.actors[a->target];Vec target=leadTarget(a,enemy,a->plane?360:245),d=sub(target,a->p);
     float yaw=atan2f(d.x,d.z);
     if(!a->plane){a->turret=turn(a->turret,yaw,1.5f*dt);a->elev=turn(a->elev,a->desiredPitch,.7f*dt);}
@@ -218,6 +231,7 @@ void stepGame(float dt,Controls controls){
         if(a->hp<=0){a->respawn-=dt;if(a->respawn<=0)spawnActor(i);continue;}
         a->reload=fmaxf(0,a->reload-dt);
         if(i==0)playerControl(dt,controls);else controlBot(i,dt);
+        a->yaw=wrap(a->yaw);a->turret=wrap(a->turret);
         Vec old=a->p,next=add(old,mul(direction(a->yaw,a->plane?a->pitch:0),a->speed*dt));
         if(a->plane){
             a->p=next;
@@ -233,7 +247,7 @@ void stepGame(float dt,Controls controls){
             a->p.x=next.x;if(blocked(a->p,3.8f))a->p.x=old.x;
             a->p.z=next.z;if(blocked(a->p,3.8f))a->p.z=old.z;
             for(int j=0;j<game.count;j++)if(j!=i&&game.actors[j].hp>0&&horizontal(sub(a->p,game.actors[j].p))<7){a->p=old;break;}
-            if(i>0&&fabsf(a->speed)>5){if(horizontal(sub(old,a->p))<dt)a->stuck+=dt;else a->stuck=fmaxf(0,a->stuck-dt);}
+            if(i>0&&a->stuck>=0&&fabsf(a->speed)>5){if(horizontal(sub(old,a->p))<dt)a->stuck+=dt;else a->stuck=fmaxf(0,a->stuck-dt);}
         }
     }
     updateShots(dt);
@@ -247,9 +261,8 @@ void stepGame(float dt,Controls controls){
             if(count[1]&&!count[0])o->capture=clampf(o->capture-dt*.11f,-1,1);
             int owner=o->capture>=1?0:o->capture<=-1?1:-1;
             if(owner!=o->owner){o->owner=owner;if(owner>=0){char msg[64];snprintf(msg,sizeof(msg),"OBJECTIVE %c CAPTURED BY %s",'A'+f,owner?"RED":"BLUE");announce(msg);}}
-            if(o->owner>=0)game.tickets[1-o->owner]-=dt*.55f;
+            if(o->owner>=0&&!o->contested)game.tickets[1-o->owner]-=dt*.55f;
         }
     }
     if(game.tickets[0]<=0||game.tickets[1]<=0||game.elapsed>=720){game.winner=game.tickets[0]>=game.tickets[1]?0:1;game.mode=MODE_RESULT;}
 }
-

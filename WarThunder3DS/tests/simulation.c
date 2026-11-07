@@ -21,13 +21,34 @@ int main(void){
     game.buildings[0]=(Building){0,10,10,4,20,0};
     float t=traceWorld(V(0,2,0),V(0,2,30),0);assert(fabsf(t-8.0f/30)<.001f);
     assert(traceWorld(V(15,2,0),V(15,2,30),0)==1);
-    assert(traceWorld(V(0,25,0),V(0,25,30),0)==1);
+    assert(traceWorld(V(0,30,0),V(0,30,30),0)==1);
     assert(fabsf(traceWorld(V(20,10,0),V(20,-10,0),0)-.5f)<.001f);
     startMatch(0);game.count=2;
     game.actors[0].p=game.objectives[0].p;game.actors[0].p.y=1.5f;
     game.actors[1].hp=0;game.actors[1].respawn=1000;
     for(int i=0;i<650;i++)stepGame(1.0f/60,(Controls){0});
     assert(game.objectives[0].owner==0);assert(game.tickets[1]<200);
+    /* Broad phase must agree with the full building scan. */
+    startMatch(0);
+    for(int n=0;n<2000;n++){
+        Vec a=V((randf()-.5f)*1200,randf()*100,(randf()-.5f)*1200);
+        Vec b=V((randf()-.5f)*1200,randf()*100,(randf()-.5f)*1200);
+        float radius=randf()*5,slow=1;
+        for(int j=0;j<BUILDINGS;j++)slow=fminf(slow,boxTrace(a,b,&game.buildings[j],radius));
+        if(b.y<radius&&b.y<a.y)slow=fminf(slow,(a.y-radius)/(a.y-b.y));
+        assert(fabsf(traceWorld(a,b,radius)-clampf(slow,0,1))<.00001f);
+    }
+    /* A wall between the breech and muzzle cannot be skipped. */
+    for(int i=0;i<BUILDINGS;i++)game.buildings[i]=(Building){500,500,10,10,10,0};
+    game.actors[0].p=V(0,1.5f,0);game.actors[0].yaw=game.actors[0].turret=0;game.actors[0].elev=0;game.actors[0].reload=0;
+    game.buildings[0]=(Building){0,3,10,1,10,0};fireWeapon(0);
+    assert(game.shots[0].p.z<2.5f);updateShots(1.0f/60);assert(game.shots[0].life<=0);
+    /* A contested owned flag must not drain either team's tickets. */
+    startMatch(0);game.count=2;game.objectives[0].capture=1;game.objectives[0].owner=0;
+    game.actors[0].p=add(game.objectives[0].p,V(-5,1.5f,0));
+    game.actors[1].p=add(game.objectives[0].p,V(5,1.5f,0));
+    game.actors[1].think=100;game.actors[1].desiredSpeed=0;game.actors[1].target=-1;
+    stepGame(1.0f/60,(Controls){0});assert(game.objectives[0].contested);assert(game.tickets[1]==200);
     startMatch(1);assert(game.count==10&&game.edge==1000);
     for(int i=0;i<game.count;i++)assert(game.actors[i].plane);
     for(int air=0;air<2;air++){

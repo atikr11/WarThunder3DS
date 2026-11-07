@@ -1,4 +1,4 @@
-# WarThunder3DS — Valley Front (v2)
+# WarThunder3DS — Valley Front (v2.1)
 
 Original offline arcade combat for Old Nintendo 3DS / 3DS XL.
 Not affiliated with War Thunder or Gaijin; no assets from those games.
@@ -6,7 +6,7 @@ Not affiliated with War Thunder or Gaijin; no assets from those games.
 ## Build in devkitPro MSYS
 
 ```sh
-cd "/c/Users/atikr/OneDrive/Documents/ChatGPT/3DS Games/WarThunder3DS"
+cd "/c/Users/atikr/source/repos/WarThunder3DS/WarThunder3DS"
 make -j2
 ```
 
@@ -28,6 +28,8 @@ The Makefile supports this project's path containing spaces.
 `make clean` removes generated game build outputs; `make -j2` rebuilds them.
 Keep all files under `source/` together; main.c now uses separate simulation,
 graphics, and audio modules for easier development.
+
+See `AUDIT-v2.1.md` for the missing-menu fix, combat corrections, optimization work, and verification details.
 
 ## Changes in v2
 
