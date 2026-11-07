@@ -1,5 +1,14 @@
 #include "game.h"
 Game game;
+typedef struct {float reaction,think,turn,spread,cooldown,damage;} BotSkill;
+static const BotSkill skills[3]={
+    {1.0f,.55f,.65f,.065f,1.85f,.60f},
+    {.5f,.30f,.85f,.030f,1.35f,.80f},
+    {.15f,.16f,1.0f,.006f,1.0f,1.0f}
+};
+static const BotSkill *skillFor(int id){return &skills[game.actors[id].team?(int)clampf(game.difficulty,0,2):1];}
+const char *difficultyName(void){return game.difficulty==0?"EASY":game.difficulty==1?"MEDIUM":"HARD";}
+
 float randf(void){game.seed=game.seed*1664525u+1013904223u;return (game.seed>>8)*(1.0f/16777216);}
 void announce(const char *message){snprintf(game.message,sizeof(game.message),"%s",message);game.messageTime=3.0f;}
 static float axisNear(float start,float delta,float lo,float hi,float *exit){
@@ -62,18 +71,18 @@ static void generateMap(void){
         game.trees[i]=(Tree){V(x,0,z),5+randf()*7,i%3};
     }
 }
-void initGame(void){memset(&game,0,sizeof(game));game.fps=30;game.mode=MODE_MENU;game.winner=-1;}
+void initGame(void){memset(&game,0,sizeof(game));game.fps=30;game.assist=1;game.assistTarget=-1;game.mode=MODE_MENU;game.winner=-1;}
 void spawnActor(int i){
     Actor *a=&game.actors[i];int slot=i/2;
     a->p=V((slot%3-1)*23+(a->team?11:0),a->plane?100+(slot%3)*23:1.5f,(a->team?1:-1)*game.edge*.72f+(slot/3)*24*(a->team?-1:1));
     a->yaw=a->team?PI:0;a->pitch=0;a->bank=0;a->turret=a->yaw;a->elev=.015f;
     a->hp=maxHP(a);a->speed=a->plane?85:0;a->reload=.8f;a->respawn=0;
     a->think=i*.021f;a->desiredYaw=a->yaw;a->desiredSpeed=a->speed;a->desiredPitch=0;
-    a->target=-1;a->evade=0;a->stuck=0;a->previous=a->p;a->goal=slot%OBJECTIVES;
+    a->target=-1;a->engage=0;a->evade=0;a->stuck=0;a->previous=a->p;a->goal=slot%OBJECTIVES;
 }
 void startMatch(int air){
     game.air=air;game.selection=air;game.count=air?10:12;game.edge=air?1000:600;
-    game.aiming=0;game.elapsed=0;game.kills=0;game.deaths=0;game.winner=-1;game.hitMarker=0;game.damageFlash=0;
+    game.assistTarget=-1;game.aiming=0;game.elapsed=0;game.kills=0;game.deaths=0;game.winner=-1;game.hitMarker=0;game.damageFlash=0;
     game.tickets[0]=game.tickets[1]=200;
     memset(game.actors,0,sizeof(game.actors));memset(game.shots,0,sizeof(game.shots));memset(game.fx,0,sizeof(game.fx));
     generateMap();
@@ -95,15 +104,18 @@ void damageActor(int victim,float amount,int owner){
 }
 void fireWeapon(int id){
     Actor *a=&game.actors[id];if(a->hp<=0||a->reload>0)return;
-    Vec d=direction(a->plane?a->yaw:a->turret,a->plane?a->pitch:a->elev);
+    float yaw=a->plane?a->yaw:a->turret,pitch=a->plane?a->pitch:a->elev;
+    const BotSkill *skill=skillFor(id);
+    if(id!=0){yaw+=(randf()*2-1)*skill->spread;pitch+=(randf()*2-1)*skill->spread;}
+    Vec d=direction(yaw,pitch);
     for(int i=0;i<MAX_SHOTS;i++)if(game.shots[i].life<=0){
         Vec origin=add(a->p,V(0,a->plane?-.2f:1.5f,0));
         Vec muzzle=add(origin,mul(d,5.5f));
         /* Start at the breech if a wall blocks the muzzle; next sweep registers the hit. */
         if(traceWorld(origin,muzzle,0)<1)muzzle=origin;
         float speed=a->plane?360:245;
-        game.shots[i]=(Shot){muzzle,mul(d,speed),a->plane?1.8f:3.0f,a->plane?18:66,a->plane?0:9.8f,id,a->team};
-        playSound(a->plane?1:0,a->p,id==0?1:.7f);a->reload=reloadTime(a);effect(muzzle,a->plane?.5f:1.1f,0);return;
+        game.shots[i]=(Shot){muzzle,mul(d,speed),a->plane?1.8f:3.0f,(a->plane?18:66)*(id==0?1:skill->damage),a->plane?0:9.8f,id,a->team};
+        playSound(a->plane?1:0,a->p,id==0?1:.7f);a->reload=reloadTime(a)*(id==0?1:skill->cooldown);effect(muzzle,a->plane?.5f:1.1f,0);return;
     }
 }
 static float sphereTrace(Vec from,Vec to,Vec center,float radius){
@@ -142,7 +154,7 @@ static Vec leadTarget(const Actor *a,const Actor *target,float speed){
     return add(target->p,mul(direction(target->yaw,target->plane?target->pitch:0),target->speed*time*.75f));
 }
 static void thinkBot(int id){
-    Actor *a=&game.actors[id];a->target=nearestEnemy(id);if(a->target<0||game.actors[a->target].hp<=0)return;
+    Actor *a=&game.actors[id];int oldTarget=a->target;a->target=nearestEnemy(id);if(a->target!=oldTarget)a->engage=0;if(a->target<0||game.actors[a->target].hp<=0)return;
     Actor *enemy=&game.actors[a->target];Vec target=leadTarget(a,enemy,a->plane?360:245);
     Vec delta=sub(target,a->p);float distance=length(delta);
     if(a->plane){
@@ -183,19 +195,55 @@ static void thinkBot(int id){
     }
 }
 static void controlBot(int id,float dt){
-    Actor *a=&game.actors[id];a->think-=dt;a->evade=fmaxf(0,a->evade-dt);
-    if(a->think<=0){thinkBot(id);a->think=.16f;}
-    a->yaw=turn(a->yaw,a->desiredYaw,(a->plane?1.05f:1.3f)*dt);
+    Actor *a=&game.actors[id];const BotSkill *skill=skillFor(id);a->engage+=dt;a->think-=dt;a->evade=fmaxf(0,a->evade-dt);
+    if(a->think<=0){thinkBot(id);a->think=skill->think;}
+    a->yaw=turn(a->yaw,a->desiredYaw,(a->plane?1.05f:1.3f)*skill->turn*dt);
     a->speed+=(a->desiredSpeed-a->speed)*fminf(1,dt*2);
     if(!a->plane&&a->stuck<0){a->stuck=fminf(0,a->stuck+dt);a->speed=-12;}
     if(a->plane){a->pitch=turn(a->pitch,a->desiredPitch,.65f*dt);a->bank=clampf(-wrap(a->desiredYaw-a->yaw),-.9f,.9f);}
     if(a->target<0||game.actors[a->target].hp<=0)return;
     Actor *enemy=&game.actors[a->target];Vec target=leadTarget(a,enemy,a->plane?360:245),d=sub(target,a->p);
     float yaw=atan2f(d.x,d.z);
-    if(!a->plane){a->turret=turn(a->turret,yaw,1.5f*dt);a->elev=turn(a->elev,a->desiredPitch,.7f*dt);}
+    if(!a->plane){a->turret=turn(a->turret,yaw,1.5f*skill->turn*dt);a->elev=turn(a->elev,a->desiredPitch,.7f*dt);}
     float error=fabsf(wrap(yaw-(a->plane?a->yaw:a->turret)));
     float pitch=atan2f(d.y,horizontal(d));
-    if(length(d)<(a->plane?500:410)&&error<(a->plane?.10f:.045f)&&(!a->plane||fabsf(pitch-a->pitch)<.10f)&&traceWorld(add(a->p,V(0,a->plane?0:2,0)),target,0)>=.999f)fireWeapon(id);
+    if(a->engage>=skill->reaction&&length(d)<(a->plane?500:410)&&error<(a->plane?.10f:.045f)&&(!a->plane||fabsf(pitch-a->pitch)<.10f)&&traceWorld(add(a->p,V(0,a->plane?0:2,0)),target,0)>=.999f)fireWeapon(id);
+}
+/* Assist is deliberately limited: visible hostile, near the sight, and L held.
+ * Projectiles remain ballistic and manual input overrides each aiming axis. */
+void aimAssist(float dt,Controls c){
+    game.assistTarget=-1;Actor *a=&game.actors[0];
+    if(!game.assist||!game.aiming||a->hp<=0)return;
+    Vec origin=add(a->p,V(0,a->plane?0:1.5f,0));
+    Vec forward=direction(a->plane?a->yaw:a->turret,a->plane?a->pitch:a->elev);
+    float best=1e9f;int target=-1;
+    for(int i=1;i<game.count;i++){
+        Actor *b=&game.actors[i];if(b->hp<=0||b->team==a->team)continue;
+        Vec center=add(b->p,V(0,b->plane?0:.6f,0)),delta=sub(center,origin);float distance=length(delta);
+        if(distance<6||distance>(a->plane?650:450))continue;
+        float cosine=dot(forward,mul(delta,1/distance));
+        if(cosine<(a->plane?.94f:.90f)||traceWorld(origin,center,0)<.999f)continue;
+        float score=(1-cosine)*1000+distance*.02f;
+        if(score<best){best=score;target=i;}
+    }
+    if(target<0)return;
+    game.assistTarget=target;Actor *b=&game.actors[target];
+    float speed=a->plane?360:245;
+    Vec center=add(b->p,V(0,b->plane?0:.6f,0)),velocity=mul(direction(b->yaw,b->plane?b->pitch:0),b->speed);
+    float flight=length(sub(center,origin))/speed;
+    for(int k=0;k<3;k++)flight=length(sub(add(center,mul(velocity,flight)),origin))/speed;
+    Vec delta=sub(add(center,mul(velocity,flight)),origin);
+    if(!a->plane)delta.y+=.5f*9.8f*flight*flight;
+    float yaw=atan2f(delta.x,delta.z),pitch=atan2f(delta.y,horizontal(delta));
+    int manualX=fabsf(c.stickX)>.25f||(c.held&(KEY_DLEFT|KEY_DRIGHT));
+    int manualY=fabsf(c.stickY)>.25f||(c.held&(KEY_DUP|KEY_DDOWN));
+    if(a->plane){
+        if(!manualX)a->yaw=turn(a->yaw,yaw,.55f*dt);
+        if(!manualY)a->pitch=turn(a->pitch,clampf(pitch,a->p.y<30?.15f:-.7f,.7f),.4f*dt);
+    }else{
+        if(!manualX)a->turret=turn(a->turret,yaw,1.0f*dt);
+        if(!manualY)a->elev=turn(a->elev,clampf(pitch,-.1f,.75f),.5f*dt);
+    }
 }
 void playerControl(float dt,Controls c){
     Actor *a=&game.actors[0];game.aiming=(c.held&KEY_L)!=0;float x=clampf(c.stickX,-1,1),y=clampf(c.stickY,-1,1);
@@ -227,6 +275,7 @@ void playerControl(float dt,Controls c){
         a->elev=clampf(a->elev,-.1f,.75f);
         /* L is a momentary aim zoom; never recenters the gun. */
     }
+    aimAssist(dt,c);
     if(c.held&KEY_R)fireWeapon(0);
 }
 void stepGame(float dt,Controls controls){

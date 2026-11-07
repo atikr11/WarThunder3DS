@@ -23,6 +23,32 @@ int main(void){
     playerControl(.2f,(Controls){0,0,1});assert(game.actors[0].speed>0&&!game.aiming);
     startMatch(1);playerControl(.1f,(Controls){KEY_L,1,0});assert(game.actors[0].yaw<0&&game.actors[0].bank>0&&game.aiming);
     startMatch(0);
+    /* Difficulty remains selected across matches, with ordered enemy profiles. */
+    assert(skills[0].reaction>skills[1].reaction&&skills[1].reaction>skills[2].reaction);
+    assert(skills[0].spread>skills[2].spread&&skills[0].damage<skills[2].damage);
+    for(int level=0;level<3;level++){
+        game.difficulty=level;startMatch(0);assert(game.difficulty==level);
+        game.actors[1].reload=0;fireWeapon(1);assert(game.actors[1].reload==reloadTime(&game.actors[1])*skills[level].cooldown);
+        assert(game.shots[0].damage==66*skills[level].damage);
+    }
+    game.difficulty=0;
+    for(int air=0;air<2;air++){
+        startMatch(air);game.count=2;
+        for(int b=0;b<BUILDINGS;b++)game.buildings[b]=(Building){900,900,5,5,5,0};
+        Actor *p=&game.actors[0],*e=&game.actors[1];
+        p->p=V(0,air?100:1.5f,0);p->yaw=p->turret=p->pitch=p->elev=0;
+        e->p=V(12,air?110:1.5f,120);e->speed=0;e->hp=maxHP(e);
+        game.aiming=1;aimAssist(.1f,(Controls){KEY_L,0,0});assert(game.assistTarget==1);
+        assert((air?p->yaw:p->turret)>0);
+        p->yaw=p->turret=0;aimAssist(.1f,(Controls){KEY_L,1,0});assert((air?p->yaw:p->turret)==0);
+        game.buildings[0]=(Building){6,60,30,12,200,0};aimAssist(.1f,(Controls){KEY_L,0,0});assert(game.assistTarget==-1);
+        game.buildings[0].x=900;e->hp=0;aimAssist(.1f,(Controls){KEY_L,0,0});assert(game.assistTarget==-1);
+        e->hp=maxHP(e);e->team=0;aimAssist(.1f,(Controls){KEY_L,0,0});assert(game.assistTarget==-1);
+        e->team=1;e->p.z=-120;aimAssist(.1f,(Controls){KEY_L,0,0});assert(game.assistTarget==-1);
+        e->p.z=120;game.assist=0;aimAssist(.1f,(Controls){KEY_L,0,0});assert(game.assistTarget==-1);
+        game.assist=1;game.aiming=0;aimAssist(.1f,(Controls){0});assert(game.assistTarget==-1);
+    }
+    startMatch(0);
     float elev=game.actors[0].elev,yaw=game.actors[0].turret;
     /* Old KEY_UP combines bit 6 with Circle Pad bit 30. Only bit 30 is held here. */
     playerControl(.5f,(Controls){1u<<30,0,1});

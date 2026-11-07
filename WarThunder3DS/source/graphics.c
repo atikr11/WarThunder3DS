@@ -286,11 +286,12 @@ static void targetMarkers(void){
 static void topUI(void){
     char s[80];Actor *a=&game.actors[0];
     if(game.mode==MODE_MENU){
-        rect(0,0,400,44,navy);centered(200,8,2,white,"WAR THUNDER 3DS");centered(200,29,1,muted,"FIELD OPERATIONS / V2.3");
+        rect(0,0,400,44,navy);centered(200,8,2,white,"WAR THUNDER 3DS");centered(200,29,1,muted,"FIELD OPERATIONS / V2.4");
         rect(20,68,360,111,navy);outline(20,68,360,111,blue);
         centered(200,82,2,white,game.selection?"AIR SUPERIORITY":"ARMORED FRONT");
         centered(200,110,2,gold,game.selection?"5 VS 5 AIRCRAFT":"6 VS 6 TANKS");
         centered(200,141,2,white,"< SELECT OPERATION >");
+        rect(20,181,360,25,navy);snprintf(s,sizeof(s),"DIFFICULTY: %s",difficultyName());centered(200,187,2,gold,s);
         rect(0,211,400,29,navy);centered(200,218,2,gold,"A DEPLOY / START EXIT");return;
     }
     targetMarkers();
@@ -315,6 +316,10 @@ static void topUI(void){
     Vec color=game.hitMarker>0?red:a->reload>.15f?white:gold;
     rect(x-14,y,8,2,color);rect(x+7,y,8,2,color);rect(x,y-14,2,8,color);rect(x,y+7,2,8,color);rect(x,y,2,2,color);
     if(game.aiming){rect(94,164,212,22,navy);outline(94,164,212,22,muted);centered(200,169,2,gold,game.air?"ZOOM SIGHT":"GUNNER CONTROL");}
+    if(game.aiming&&game.assistTarget>0&&game.assistTarget<game.count){
+        Actor *target=&game.actors[game.assistTarget];float tx,ty;
+        if(target->hp>0&&project(target->p,&tx,&ty)){outline(tx-12,ty-12,25,25,green);centered(tx,ty-23,1,green,"ASSIST");}
+    }
     if(game.hitMarker>0)outline(x-8,y-8,18,18,red);
     rect(5,203,135,33,navy);snprintf(s,sizeof(s),"HULL %03d%%",(int)(a->hp/maxHP(a)*100));text(10,207,2,white,s);bar(10,226,122,5,a->hp/maxHP(a),green);
     rect(272,203,123,33,navy);snprintf(s,sizeof(s),"%03d KM/H",(int)(fabsf(a->speed)*3.6f));text(282,207,2,white,s);bar(282,226,104,5,1-a->reload/reloadTime(a),gold);
@@ -361,7 +366,8 @@ static void bottomUI(void){
         text(10,94,2,muted,game.selection?"CIRCLE PAD: FLY":"L + CIRCLE PAD: AIM");
         text(10,117,2,white,"R FIRE / HOLD L ZOOM");
         text(10,140,2,white,game.selection?"A SPEED UP / B SLOW":"RELEASE L: DRIVE");
-        text(10,163,2,muted,"Y CAMERA / START PAUSE");
+        text(10,163,2,muted,"UP/DOWN: DIFFICULTY");
+        text(10,186,1,gold,game.assist?"X AIM ASSIST: ON":"X AIM ASSIST: OFF");
         rect(8,201,304,31,panel);centered(160,210,2,gold,"TOUCH OR A TO DEPLOY");return;
     }
     tacticalMap(8,37,144);

@@ -34,7 +34,7 @@ typedef struct {float x,y,z;} Vec;
 typedef struct {
     Vec p; float yaw,pitch,bank,turret,elev,speed,hp,reload,respawn;
     float think,desiredYaw,desiredPitch,desiredSpeed,evade,stuck;
-    Vec previous; int team,plane,target,goal;
+    float engage; Vec previous; int team,plane,target,goal;
 } Actor;
 typedef struct {Vec p,v;float life,damage,gravity;int owner,team;} Shot;
 typedef struct {Vec p;float life,size;int smoke;} Effect;
@@ -45,7 +45,7 @@ typedef struct {u32 held;float stickX,stickY;} Controls;
 typedef struct {
     Actor actors[MAX_ACTORS]; Shot shots[MAX_SHOTS];Effect fx[MAX_FX];
     Building buildings[BUILDINGS];Tree trees[TREES];Objective objectives[OBJECTIVES];
-    int aiming; int mode,selection,air,count,kills,deaths,winner,closeCamera,overflow;
+    int difficulty,assist,assistTarget; int aiming; int mode,selection,air,count,kills,deaths,winner,closeCamera,overflow;
     float edge,tickets[2],elapsed,fps,hitMarker,damageFlash,messageTime;
     unsigned seed;char message[64];
 } Game;
@@ -69,6 +69,8 @@ void startMatch(int air);
 void spawnActor(int i);
 void stepGame(float dt,Controls controls);
 void playerControl(float dt,Controls controls);
+void aimAssist(float dt,Controls controls);
+const char *difficultyName(void);
 float traceWorld(Vec from,Vec to,float radius);
 void damageActor(int victim,float amount,int owner);
 void fireWeapon(int id);

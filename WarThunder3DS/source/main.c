@@ -17,6 +17,9 @@ int main(void){
         if(game.mode==MODE_MENU){
             if(down&KEY_START)break;
             if(down&(KEY_DLEFT|KEY_DRIGHT|KEY_CPAD_LEFT|KEY_CPAD_RIGHT))game.selection=!game.selection;
+            if(down&(KEY_DUP|KEY_CPAD_UP))game.difficulty=(game.difficulty+1)%3;
+            if(down&(KEY_DDOWN|KEY_CPAD_DOWN))game.difficulty=(game.difficulty+2)%3;
+            if(down&KEY_X)game.assist=!game.assist;
             if((down&KEY_TOUCH)&&touch.py>=207)deploy();
             else if(down&KEY_A)deploy();
         }else if(down&KEY_SELECT){game.mode=MODE_MENU;resetCamera();}

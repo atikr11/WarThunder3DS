@@ -1,4 +1,4 @@
-# WarThunder3DS — Valley Front (v2.3)
+# WarThunder3DS — Valley Front (v2.4)
 
 Original offline arcade combat for Old Nintendo 3DS / 3DS XL.
 Not affiliated with War Thunder or Gaijin; no assets from those games.
@@ -29,9 +29,34 @@ The Makefile supports this project's path containing spaces.
 Keep all files under `source/` together; main.c now uses separate simulation,
 graphics, and audio modules for easier development.
 
-v2.2 corrects left/right steering and turret direction, adds smooth hold-L aiming zoom to both modes, and replaces fractional text scaling with larger integer-aligned text. Zoom narrows field of view from 60 to 30 degrees; it does not automatically lock onto enemies. Release L to return to the normal view.
+v2.2 corrects left/right steering and turret direction, adds smooth hold-L aiming zoom to both modes, and replaces fractional text scaling with larger integer-aligned text. Zoom narrows field of view from 60 to 30 degrees. Optional v2.4 aim assist is described above. Release L to return to the normal view.
 
 See `AUDIT-v2.1.md` for the missing-menu fix, combat corrections, optimization work, and verification details.
+
+## v2.4: difficulty and aim assist
+
+In the deployment menu, use Up/Down to select Easy, Medium, or Hard.
+Easy is the default. Settings stay selected for rematches during the current
+session; there is no disk persistence. Enemy bot profiles:
+
+| Difficulty | Reaction delay | Shot spread | Damage | Reload multiplier |
+| --- | --- | --- | --- | --- |
+| Easy | 1.0 second | +/-3.7 degrees | 60% | 1.85x |
+| Medium | 0.5 second | +/-1.7 degrees | 80% | 1.35x |
+| Hard | 0.15 second | +/-0.34 degrees | 100% | 1.0x |
+
+Allied bots use the Medium profile, so Easy benefits the player's team.
+Bot decisions and turret turning are also slower on easier settings.
+
+Aim assist defaults ON; press X in the menu to toggle it. Hold L and bring
+an enemy close to the sight. Assist gradually guides tank turret/elevation
+or aircraft heading/pitch toward a visible enemy, with target lead and shell
+drop compensation. A green ASSIST bracket identifies the selected enemy.
+It ignores allies, dead enemies, enemies behind buildings, and enemies outside
+the forward cone/range. Manual stick/D-pad input overrides the corresponding
+aiming axis. Release L for unassisted controls. It does not fire automatically,
+make bullets home, or guarantee a hit. Aircraft assist is limited steering help;
+continue flying and avoiding terrain yourself.
 
 ## v2.3
 
@@ -104,7 +129,7 @@ or after 12 minutes, with the higher ticket total winning.
 | START | Pause/resume | Same |
 | SELECT | Return to deployment menu | Same |
 
-Menu: left/right selects battle type; A deploys; START exits. Touching the
+Menu: left/right selects battle type; up/down selects difficulty; X toggles aim assist; A deploys; START exits. Touching the
 bottom-screen DEPLOY button also starts a match. On the results screen A
 starts a rematch. Change battle type by returning to the menu first.
 
