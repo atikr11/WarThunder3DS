@@ -208,12 +208,17 @@ void playerControl(float dt,Controls c){
         if(c.held&KEY_B)a->speed-=35*dt;
         a->speed=clampf(a->speed,55,145);
     }else{
-        float yawDelta=-x*1.25f*dt;
-        a->yaw+=yawDelta;
-        /* Hull movement carries the turret around; D-pad is independent fine aim. */
-        a->turret+=yawDelta;
-        float desired=y*(c.held&KEY_A?38:27);
-        a->speed+=(desired-a->speed)*fminf(1,dt*4);
+        if(game.aiming){
+            /* Hold L: brake and route the analog stick exclusively to the gun. */
+            a->speed=0;
+            a->turret-=x*.65f*dt;
+            a->elev+=y*.35f*dt;
+        }else{
+            float yawDelta=-x*1.25f*dt;
+            a->yaw+=yawDelta;a->turret+=yawDelta;
+            float desired=y*(c.held&KEY_A?38:27);
+            a->speed+=(desired-a->speed)*fminf(1,dt*4);
+        }
         /* KEY_UP/LEFT include Circle Pad aliases. Always use KEY_D* here. */
         if(c.held&KEY_DLEFT)a->turret+=1.15f*dt;
         if(c.held&KEY_DRIGHT)a->turret-=1.15f*dt;

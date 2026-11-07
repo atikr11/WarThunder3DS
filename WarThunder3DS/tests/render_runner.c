@@ -72,7 +72,15 @@ int main(void){
     game.aiming=1;for(int i=0;i<60;i++)updateCamera(1.0f/60);assert(viewTan<.3f);captureFrame("zoom");
     game.aiming=0;for(int i=0;i<60;i++)updateCamera(1.0f/60);assert(viewTan>.57f);
     game.mode=MODE_PAUSE;captureFrame("pause");game.mode=MODE_RESULT;game.winner=0;captureFrame("result");
-    startMatch(1);rebuildScene();captureFrame("air");game.aiming=1;for(int i=0;i<60;i++)updateCamera(1.0f/60);assert(viewTan<.3f);game.aiming=0;resetCamera();game.actors[0].hp=0;game.actors[0].respawn=5;captureFrame("destroyed");
+    startMatch(1);rebuildScene();captureFrame("air");game.aiming=1;for(int i=0;i<60;i++)updateCamera(1.0f/60);assert(viewTan<.3f);game.aiming=0;
+    for(int i=0;i<240;i++){
+        Actor *plane=&game.actors[0];plane->p.y=i<120?5:100;plane->yaw+=.04f;plane->pitch=sinf(i*.05f)*.8f;
+        game.aiming=(i/30)%2;updateCamera(1.0f/60);
+        Vec d=direction(plane->yaw,plane->pitch);
+        assert(eye.y>=3);assert(length(sub(eye,plane->p))>=13.99f);
+        assert(dot(sub(eye,plane->p),d)<=-13.99f);
+    }
+    game.aiming=0;resetCamera();game.actors[0].hp=0;game.actors[0].respawn=5;captureFrame("destroyed");
         startMatch(0);rebuildScene();
     game.kills=999;game.deaths=999;
     for(int i=0;i<game.count;i++)game.actors[i].p=V((i%4-1)*14,1.5f,-320+(i/4)*20);

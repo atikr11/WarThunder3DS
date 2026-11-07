@@ -15,6 +15,12 @@ int main(void){
     spawnActor(0);playerControl(.1f,(Controls){KEY_DRIGHT,0,0});assert(game.actors[0].turret<0);
     float gun=game.actors[0].turret;playerControl(.1f,(Controls){KEY_L,0,0});assert(game.aiming&&game.actors[0].turret==gun);
     playerControl(.1f,(Controls){0,0,0});assert(!game.aiming);
+    spawnActor(0);game.actors[0].speed=25;float hull=game.actors[0].yaw;
+    float aimYaw=game.actors[0].turret,aimElev=game.actors[0].elev;
+    playerControl(.2f,(Controls){KEY_L,1,1});
+    assert(game.actors[0].speed==0&&game.actors[0].yaw==hull);
+    assert(game.actors[0].turret<aimYaw&&game.actors[0].elev>aimElev);
+    playerControl(.2f,(Controls){0,0,1});assert(game.actors[0].speed>0&&!game.aiming);
     startMatch(1);playerControl(.1f,(Controls){KEY_L,1,0});assert(game.actors[0].yaw<0&&game.actors[0].bank>0&&game.aiming);
     startMatch(0);
     float elev=game.actors[0].elev,yaw=game.actors[0].turret;
